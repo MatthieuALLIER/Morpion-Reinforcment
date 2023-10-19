@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 import random
 
 
@@ -158,26 +159,50 @@ def train_bot():
     ref = {"X": 1, "O": -1, "Draw": 0}
 
     for i in range(1):
+        q = pd.DataFrame(columns=["board", "possible"])
         partie = Partie(random.choice)
         results = partie.launch()
         print(results["result"])
         X_results = [d for d in results["states"] if d.get("player") == "X"]
         for state in X_results:
-            Q = pd.concat(
-                [
-                    Q,
-                    pd.DataFrame(
-                        {
-                            "board": state["state"],
-                            "possible": [{f"{item}": 0 for item in state["possibles"]}],
-                        }
-                    ),
-                ]
-            ).reset_index(drop=True)
+            q = pd.concat([
+                q,
+                pd.DataFrame(
+                {
+                    "board": state["state"],
+                    "possible": [{f"{item}": 0 for item in state["possibles"]}],
+                })
+            ])
+        reverseq = q.iloc[::-1].reset_index(drop=True)
+        for i, st in enumerate(reverseq["board"]):
 
-        for st in range(len(Q) - 1, -1, -1):
-            r = ref[results["result"]] if st == len(Q) - 1 else Q.iloc[st + 1, 1][X_results[st + 1]["action"]]
-            Q.iloc[st, 1][X_results[st]["action"]] = 0.9 * r
+            if st == q.iloc[len(q) - 1, 0]:
+                r = ref[results["result"]]
+                if st in set(Q['board']):
+                    Q[Q["board"] == st]["possible"][X_results[st]["action"]] = 0.9 * r
+                else: 
+                    reverseq.iloc[i, 1][X_results[i]["action"]] = 0.9 * r
+                    Q = pd.concat([Q, reverseq.iloc[[i]]])
+
+            elif reverseq[i+1]["board"] in set(Q['board']):
+                r = max(max(Q.loc[st, "possible"].values()), max(q.loc[st, "possible"].values()))
+                if st in set(Q['board']):
+                    Q[Q["board"] == st]["possible"][X_results[i]["action"]] = 0.9 * r
+                else: 
+                    reverseq.iloc[i, 1][X_results[st]["action"]] = 0.9 * r
+                    Q = pd.concat([Q, reverseq.iloc[[i]]])
+
+            else:
+                r = max(q.loc[st, "possible"].values())
+                if st in set(Q['board']):
+                    Q[Q["board"] == st]["possible"][X_results[i]["action"]] = 0.9 * r
+                else: 
+                    reverseq.iloc[i, 1][X_results[st]["action"]] = 0.9 * r
+                    Q = pd.concat([Q, reverseq.iloc[[i]]])
+
+            print(q)
+            print("----------------")
+            print(Q)
 
     return Q
 
