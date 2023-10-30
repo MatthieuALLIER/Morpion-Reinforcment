@@ -79,7 +79,6 @@ class Partie:
         self.switch_player()
 
     def check_end(self, player, position):
-
         is_player_diag1 = True if position in ["a1", "b2", "c3"] else False
         is_player_diag2 = True if position in ["a3", "b2", "c1"] else False
 
@@ -154,55 +153,35 @@ class Partie:
         print(self.board)
 
 
-def train_bot():
-    Q = pd.DataFrame(columns=["board", "possible"])
+def update_q_table(results, q):
     ref = {"X": 1, "O": -1, "Draw": 0}
+    X_results = [item for item in results["states"] if item.get("player") == "X"]
+    for i, rev_state in enumerate(X_results[::-1]):
+        if i == 0:
+            q[rev_state["state"]][rev_state["action"]] = 0.9 * ref[results["result"]]
+        else:
+            prev_state = X_results[::-1][i - 1]["state"]
+            q[rev_state["state"]][rev_state["action"]] = 0.9 * max(q[f"{prev_state}"].values())
 
+    return q
+
+
+def fusion_q_Q(q, Q):
+    pass
+
+
+def train_bot(Q=dict()):
     for i in range(1):
-        q = pd.DataFrame(columns=["board", "possible"])
+        q = dict()
         partie = Partie(random.choice)
         results = partie.launch()
-        print(results["result"])
-        X_results = [d for d in results["states"] if d.get("player") == "X"]
-        for state in X_results:
-            q = pd.concat([
-                q,
-                pd.DataFrame(
-                {
-                    "board": state["state"],
-                    "possible": [{f"{item}": 0 for item in state["possibles"]}],
-                })
-            ])
-        reverseq = q.iloc[::-1].reset_index(drop=True)
-        for i, st in enumerate(reverseq["board"]):
+        for state in results["states"]:
+            if state["player"] == "X":
+                q[state["state"]] = {f"{possible}": 0 for possible in state["possibles"]}
 
-            if st == q.iloc[len(q) - 1, 0]:
-                r = ref[results["result"]]
-                if st in set(Q['board']):
-                    Q[Q["board"] == st]["possible"][X_results[st]["action"]] = 0.9 * r
-                else: 
-                    reverseq.iloc[i, 1][X_results[i]["action"]] = 0.9 * r
-                    Q = pd.concat([Q, reverseq.iloc[[i]]])
+        q = update_q_table(results, q)
 
-            elif reverseq[i+1]["board"] in set(Q['board']):
-                r = max(max(Q.loc[st, "possible"].values()), max(q.loc[st, "possible"].values()))
-                if st in set(Q['board']):
-                    Q[Q["board"] == st]["possible"][X_results[i]["action"]] = 0.9 * r
-                else: 
-                    reverseq.iloc[i, 1][X_results[st]["action"]] = 0.9 * r
-                    Q = pd.concat([Q, reverseq.iloc[[i]]])
-
-            else:
-                r = max(q.loc[st, "possible"].values())
-                if st in set(Q['board']):
-                    Q[Q["board"] == st]["possible"][X_results[i]["action"]] = 0.9 * r
-                else: 
-                    reverseq.iloc[i, 1][X_results[st]["action"]] = 0.9 * r
-                    Q = pd.concat([Q, reverseq.iloc[[i]]])
-
-            print(q)
-            print("----------------")
-            print(Q)
+        Q = fusion_q_Q(q, Q)
 
     return Q
 
