@@ -93,7 +93,7 @@ class Partie:
             for x in ["1", "2", "3"]:
                 if self.board.loc[x, y] == "-":
                     possible.append(y + x)
-        i = random.randint(1,1000)
+        i = random.randint(1,3000)
         if self.gamma > i:
             return possible, self.exploite(possible)
         else:
@@ -137,20 +137,25 @@ def fusion_q_Q(q, Q):
         if state in Q:
             for possible in list(q[state].keys()):
                 Q[state][possible] = np.mean([q[state][possible], Q[state][possible]])
+                Q[state][possible] = Q[state][possible] + max()
         else:
             Q[state] = q[state]
+        next_reward=Q[state]
     return Q
 
 
 
 def train_bot(n, Q=dict()):
     win = 0
+    draw = 0
     for i in range(n):
         q = dict()
         partie = Partie(Q, i)
         results = partie.launch()
         if results["result"] == "X":
             win += 1
+        if results["result"] == "Draw":
+            draw += 1
         for state in results["states"]:
             if state["player"] == "X":
                 q[state["state"]] = {f"{possible}": 0 for possible in state["possibles"]}
@@ -159,12 +164,33 @@ def train_bot(n, Q=dict()):
 
         Q = fusion_q_Q(q, Q)
 
-    return Q, win
+    return Q, win, draw
+
+def play_against_bot(n, Q=dict()):
+    win = 0
+    draw = 0
+    for i in range(n):
+        q = dict()
+        partie = Partie(Q, n)
+        results = partie.launch()
+        if results["result"] == "X":
+            win += 1
+        if results["result"] == "Draw":
+            draw += 1
+        for state in results["states"]:
+            if state["player"] == "X":
+                q[state["state"]] = {f"{possible}": 0 for possible in state["possibles"]}
+
+        q = update_q_table(results, q)
+
+        Q = fusion_q_Q(q, Q)
+
+    return Q, win, draw
 
 def Q_model(state, Q):
     return max(Q[state], key=Q[state].get)
 
 if __name__ == "__main__":
-    Q, win1 = train_bot(1000)
-    Qtest, win2 = train_bot(1000, Q)
-    print(win1, win2)
+    Q, win1, draw = train_bot(3000)
+    Qtest, win2, draw2 = play_against_bot(1000, Q)
+    print(win2, draw2)
